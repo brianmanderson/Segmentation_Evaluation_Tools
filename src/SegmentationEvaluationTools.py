@@ -77,8 +77,8 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
     '''
     :param prediction_handle:
     :param truth_handle:
-    :return: a dictionary with False Positive Volume (cc)
-    False Predictions Volume (cc), this is the volume not connected to any truth prediction
+    :return: a dictionary with False Positive Volume (cc), volume of prediction not in ground truth
+    False Predictions Volume (cc), this is the volume of prediction not connected to any truth prediction
     Over Segmentation Volume (cc), this is the volume over-segmented on ground truth
     '''
     prediction = sitk.GetArrayFromImage(prediction_handle)
