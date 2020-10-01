@@ -1,0 +1,6 @@
+matplotlib
+numpy
+SimpleITK
+six
+xlrd
+check-manifest
