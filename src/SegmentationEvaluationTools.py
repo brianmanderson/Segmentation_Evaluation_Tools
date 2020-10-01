@@ -93,7 +93,7 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
     '''
     total_difference = np.sum(prediction - truth > 0) * spacing / 1000
     false_volume = total_difference
-    out_dict['False Volume (cc)'] = false_volume
+    out_dict['False Positive Volume (cc)'] = false_volume
     '''
     Next, we want to grow the prediction volume that touches ground truth, so multiple the prediction and ground truth
     '''
