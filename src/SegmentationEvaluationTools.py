@@ -15,7 +15,13 @@ class SurfaceDistanceMeasures(Enum):
     mean_surface_distance, median_surface_distance, std_surface_distance, max_surface_distance = range(4)
 
 
-def identify_overlap_metrics(prediction_handle, truth_handle, perform_distance_measures=False):
+def overlap_measures(prediction_handle, truth_handle, perform_distance_measures=False):
+    '''
+    :param prediction_handle: A prediction handle of a single site
+    :param truth_handle: A ground truth handle of a single site
+    :param perform_distance_measures: Binary, include distance measures
+    :return: a dictionary of overlap measures, optional distance measures
+    '''
     out_dict = {}
     overlap_measures_filter = sitk.LabelOverlapMeasuresImageFilter()
     overlap_measures_filter.Execute(truth_handle, prediction_handle)
@@ -71,6 +77,61 @@ def identify_overlap_metrics(prediction_handle, truth_handle, perform_distance_m
         out_dict[SurfaceDistanceMeasures.max_surface_distance.name] = np.max(
             all_surface_distances)
     return out_dict
+
+
+def calculate_overlap_measures(prediction_handle_base, truth_handle_base, measure_as_multiple_sites=False,
+                               perform_distance_measures=False):
+    '''
+    :param prediction_handle: A prediction handle of potentially multiple sites
+    :param truth_handle: A ground truth handle of a potentially multiple sites
+    :param measure_as_multiple_sites: Binary, measure overlap criteria on site-by-site basis and global?
+    :param perform_distance_measures: Binary, include distance measures?
+    :return: a dictionary of overlap measures, optional distance measures
+    '''
+    out_dict = {'Global': overlap_measures(prediction_handle=prediction_handle_base, truth_handle=truth_handle_base,
+                                           perform_distance_measures=perform_distance_measures)}
+    if measure_as_multiple_sites:
+        '''
+        Load up necessary filters for individual assessment
+        '''
+        Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
+        Connected_Threshold = sitk.ConnectedThresholdImageFilter()
+        Connected_Threshold.SetLower(1)
+        Connected_Threshold.SetUpper(2)
+        truth_stats = sitk.LabelShapeStatisticsImageFilter()
+        pred_stats = sitk.LabelShapeStatisticsImageFilter()
+        '''
+        Next, identify each independent segmentation in both
+        '''
+        truth_handle = Connected_Component_Filter.Execute(truth_handle_base)
+        prediction_handle = Connected_Component_Filter.Execute(prediction_handle_base)
+        '''
+        Get the independent lesions of both
+        '''
+        truth_stats.Execute(truth_handle)
+        pred_stats.Execute(prediction_handle)
+        prediction = sitk.GetArrayFromImage(prediction_handle_base)
+        for label in truth_stats.GetLabels():
+            truth_site = truth_handle == label
+            truth = sitk.GetArrayFromImage(truth_site)
+            overlap = truth * prediction
+            if np.max(overlap) == 0:  # If there is no overlap, take the closest one
+                truth_seed = prediction_handle_base.TransformPhysicalPointToIndex(truth_stats.GetCentroid(label))
+                pred_seeds = [pred_stats.GetCentroid(l) for l in pred_stats.GetLabels()]
+                pred_seeds = [prediction_handle_base.TransformPhysicalPointToIndex(i) for i in pred_seeds]
+                seeds = [
+                    pred_seeds[np.argmin(np.sqrt(np.sum(np.subtract(pred_seeds, truth_seed) ** 2, axis=-1)), axis=-1)]]
+            else:
+                seeds = np.transpose(np.asarray(np.where(overlap > 0)))[..., ::-1]
+                seeds = [[int(i) for i in j] for j in seeds]
+            Connected_Threshold.SetSeedList(seeds)
+            grown_prediction = Connected_Threshold.Execute(prediction_handle_base)
+            overlap_metrics = overlap_measures(prediction_handle=grown_prediction, truth_handle=truth_site,
+                                               perform_distance_measures=perform_distance_measures)
+            out_dict[label] = overlap_metrics
+    return out_dict
+
+
 
 
 def determine_false_positive_rate_and_false_volume(prediction_handle, truth_handle):
@@ -134,6 +195,11 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
 
 
 def determine_sensitivity(prediction_handle, truth_handle):
+    '''
+    :param prediction_handle: A prediction handle of potentially multiple sites
+    :param truth_handle: A ground truth handle of potentially multiple sites
+    :return: a dictionary of the site number (from ground truth), the % covered by the prediction and volume (cc)
+    '''
     out_dict = {'Site_Number': [], '% Covered': [], 'Volume (cc)': []}
     prediction = sitk.GetArrayFromImage(prediction_handle)
     stats = sitk.LabelShapeStatisticsImageFilter()
