@@ -5,7 +5,7 @@ There are a set of tools for creating quantitative comparison metrics based on g
     pip install SegmentationEvaluationTools
 
 ### Usage
-    from Segmentation_Evaluation_Tools.src.SegmentationEvaluationTools.SIKOverlapTools import calculate_overlap_measures, determine_sensitivity, 
+    from SegmentationEvaluationTools.SIKOverlapTools import calculate_overlap_measures, determine_sensitivity, 
     determine_false_positive_rate_and_false_volume, sitk
     
     truth_handle_base = sitk.ReadImage(image_path)
