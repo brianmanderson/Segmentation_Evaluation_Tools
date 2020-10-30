@@ -81,13 +81,13 @@ def __overlap_measures__(prediction_handle, truth_handle, perform_distance_measu
 
 def calculate_overlap_measures(prediction_handle_base, truth_handle_base, measure_as_multiple_sites=False,
                                perform_distance_measures=False):
-    '''
-    :param prediction_handle: A prediction handle of potentially multiple sites
-    :param truth_handle: A ground truth handle of a potentially multiple sites
+    """
+    :param prediction_handle_base: A prediction handle of potentially multiple sites
+    :param truth_handle_base: A ground truth handle of a potentially multiple sites
     :param measure_as_multiple_sites: Binary, measure overlap criteria on site-by-site basis and global?
     :param perform_distance_measures: Binary, include distance measures?
     :return: a dictionary of overlap measures, optional distance measures
-    '''
+    """
     prediction_handle_base = convert_to_image(prediction_handle_base)
     truth_handle_base = convert_to_image(truth_handle_base)
     out_dict = {'Global': __overlap_measures__(prediction_handle=prediction_handle_base, truth_handle=truth_handle_base,
@@ -149,13 +149,13 @@ def convert_to_image(x):
 
 
 def determine_false_positive_rate_and_false_volume(prediction_handle, truth_handle):
-    '''
+    """
     :param prediction_handle:
     :param truth_handle:
     :return: a dictionary with False Positive Volume (cc), volume of prediction not in ground truth
     False Predictions Volume (cc), this is the volume of prediction not connected to any truth prediction
     Over Segmentation Volume (cc), this is the volume over-segmented on ground truth
-    '''
+    """
     prediction_handle = convert_to_image(prediction_handle)
     truth_handle = convert_to_image(truth_handle)
     prediction = sitk.GetArrayFromImage(prediction_handle)
@@ -211,11 +211,11 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
 
 
 def determine_sensitivity(prediction_handle, truth_handle):
-    '''
+    """
     :param prediction_handle: A prediction handle of potentially multiple sites
     :param truth_handle: A ground truth handle of potentially multiple sites
     :return: a dictionary of the site number (from ground truth), the % covered by the prediction and volume (cc)
-    '''
+    """
     prediction_handle = convert_to_image(prediction_handle)
     truth_handle = convert_to_image(truth_handle)
     out_dict = {'Site_Number': [], '% Covered': [], 'Volume (cc)': []}
@@ -239,10 +239,10 @@ def determine_sensitivity(prediction_handle, truth_handle):
 
 
 def plot_scroll_Image(x):
-    '''
+    """
     :param x: input to view of form [rows, columns, # images]
     :return:
-    '''
+    """
     if x.dtype not in ['float32','float64']:
         x = copy.deepcopy(x).astype('float32')
     if len(x.shape) > 3:
