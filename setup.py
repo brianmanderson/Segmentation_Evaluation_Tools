@@ -13,7 +13,7 @@ setup(
     name='SegmentationEvaluationTools',
     author='Brian Mark Anderson',
     author_email='bmanderson@mdanderson.org',
-    version='0.0.8',
+    version='0.0.9',
     description='Tools for evaluating predictions on Simple-ITK Images',
     long_description=long_description,
     long_description_content_type="text/markdown",
