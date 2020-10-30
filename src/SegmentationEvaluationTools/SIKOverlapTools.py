@@ -15,13 +15,13 @@ class SurfaceDistanceMeasures(Enum):
     mean_surface_distance, median_surface_distance, std_surface_distance, max_surface_distance = range(4)
 
 
-def overlap_measures(prediction_handle, truth_handle, perform_distance_measures=False):
-    '''
+def __overlap_measures__(prediction_handle, truth_handle, perform_distance_measures=False):
+    """
     :param prediction_handle: A prediction handle of a single site
     :param truth_handle: A ground truth handle of a single site
     :param perform_distance_measures: Binary, include distance measures
     :return: a dictionary of overlap measures, optional distance measures
-    '''
+    """
     out_dict = {}
     overlap_measures_filter = sitk.LabelOverlapMeasuresImageFilter()
     overlap_measures_filter.Execute(truth_handle, prediction_handle)
@@ -88,8 +88,10 @@ def calculate_overlap_measures(prediction_handle_base, truth_handle_base, measur
     :param perform_distance_measures: Binary, include distance measures?
     :return: a dictionary of overlap measures, optional distance measures
     '''
-    out_dict = {'Global': overlap_measures(prediction_handle=prediction_handle_base, truth_handle=truth_handle_base,
-                                           perform_distance_measures=perform_distance_measures)}
+    prediction_handle_base = convert_to_image(prediction_handle_base)
+    truth_handle_base = convert_to_image(truth_handle_base)
+    out_dict = {'Global': __overlap_measures__(prediction_handle=prediction_handle_base, truth_handle=truth_handle_base,
+                                               perform_distance_measures=perform_distance_measures)}
     if measure_as_multiple_sites:
         '''
         Load up necessary filters for individual assessment
@@ -126,12 +128,24 @@ def calculate_overlap_measures(prediction_handle_base, truth_handle_base, measur
                 seeds = [[int(i) for i in j] for j in seeds]
             Connected_Threshold.SetSeedList(seeds)
             grown_prediction = Connected_Threshold.Execute(prediction_handle_base)
-            overlap_metrics = overlap_measures(prediction_handle=grown_prediction, truth_handle=truth_site,
-                                               perform_distance_measures=perform_distance_measures)
+            overlap_metrics = __overlap_measures__(prediction_handle=grown_prediction, truth_handle=truth_site,
+                                                   perform_distance_measures=perform_distance_measures)
             out_dict[label] = overlap_metrics
     return out_dict
 
 
+def convert_to_image(x):
+    """
+    :param x: some object, perhaps numpy array or simple ITK image
+    :return: simpleITK image
+    """
+    if type(x) is sitk.Image:
+        return x
+    elif type(x) is np.ndarray:
+        print('Converting numpy array to Simple ITK Image, assumes spacing is (1, 1, 1)!')
+        return sitk.GetImageFromArray(x)
+    else:
+        raise TypeError('You need to provide a Simple ITK Image or numpy array!')
 
 
 def determine_false_positive_rate_and_false_volume(prediction_handle, truth_handle):
@@ -142,6 +156,8 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
     False Predictions Volume (cc), this is the volume of prediction not connected to any truth prediction
     Over Segmentation Volume (cc), this is the volume over-segmented on ground truth
     '''
+    prediction_handle = convert_to_image(prediction_handle)
+    truth_handle = convert_to_image(truth_handle)
     prediction = sitk.GetArrayFromImage(prediction_handle)
     truth = sitk.GetArrayFromImage(truth_handle)
 
@@ -200,6 +216,8 @@ def determine_sensitivity(prediction_handle, truth_handle):
     :param truth_handle: A ground truth handle of potentially multiple sites
     :return: a dictionary of the site number (from ground truth), the % covered by the prediction and volume (cc)
     '''
+    prediction_handle = convert_to_image(prediction_handle)
+    truth_handle = convert_to_image(truth_handle)
     out_dict = {'Site_Number': [], '% Covered': [], 'Volume (cc)': []}
     prediction = sitk.GetArrayFromImage(prediction_handle)
     stats = sitk.LabelShapeStatisticsImageFilter()
