@@ -79,7 +79,7 @@ def overlap_measures(prediction_handle, truth_handle, perform_distance_measures=
     return out_dict
 
 
-def calculate_overlap_measures(prediction_handle_base, truth_handle_base, measure_as_multiple_sites=False,
+def determine_overlap_measures(prediction_handle_base, truth_handle_base, measure_as_multiple_sites=False,
                                perform_distance_measures=False):
     '''
     :param prediction_handle: A prediction handle of potentially multiple sites
@@ -110,10 +110,10 @@ def calculate_overlap_measures(prediction_handle_base, truth_handle_base, measur
         '''
         truth_stats.Execute(truth_handle)
         pred_stats.Execute(prediction_handle)
-        prediction = sitk.GetArrayFromImage(prediction_handle_base)
+        prediction = sitk.GetArrayFromImage(prediction_handle_base).astype('int')
         for label in truth_stats.GetLabels():
             truth_site = truth_handle == label
-            truth = sitk.GetArrayFromImage(truth_site)
+            truth = sitk.GetArrayFromImage(truth_site).astype('int')
             overlap = truth * prediction
             if np.max(overlap) == 0:  # If there is no overlap, take the closest one
                 truth_seed = prediction_handle_base.TransformPhysicalPointToIndex(truth_stats.GetCentroid(label))
@@ -132,8 +132,6 @@ def calculate_overlap_measures(prediction_handle_base, truth_handle_base, measur
     return out_dict
 
 
-
-
 def determine_false_positive_rate_and_false_volume(prediction_handle, truth_handle):
     '''
     :param prediction_handle:
@@ -142,8 +140,8 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
     False Predictions Volume (cc), this is the volume of prediction not connected to any truth prediction
     Over Segmentation Volume (cc), this is the volume over-segmented on ground truth
     '''
-    prediction = sitk.GetArrayFromImage(prediction_handle)
-    truth = sitk.GetArrayFromImage(truth_handle)
+    prediction = sitk.GetArrayFromImage(prediction_handle).astype('int')
+    truth = sitk.GetArrayFromImage(truth_handle).astype('int')
 
     out_dict = {}
     spacing = np.prod(truth_handle.GetSpacing())
@@ -152,9 +150,11 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
     '''
     False Positive Volume (cc) is the easiest one, just subtract them
     '''
-    total_difference = np.sum(prediction - truth > 0) * spacing / 1000
-    false_volume = total_difference
-    out_dict['False Positive Volume (cc)'] = false_volume
+    difference = prediction - truth
+    false_positive = np.sum(difference > 0) * spacing / 1000
+    false_negative = np.sum(difference < 0) * spacing / 1000
+    out_dict['False Positive Volume (cc)'] = false_positive
+    out_dict['False Negative Volume (cc)'] = false_negative
     '''
     Next, we want to grow the prediction volume that touches ground truth, so multiple the prediction and ground truth
     '''
@@ -181,7 +181,7 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
         Connected_Threshold.SetUpper(2)
         Connected_Threshold.SetLower(1)
         Connected_Threshold.SetSeedList(seeds)
-        seed_grown_pred = sitk.GetArrayFromImage(Connected_Threshold.Execute(prediction_handle))
+        seed_grown_pred = sitk.GetArrayFromImage(Connected_Threshold.Execute(prediction_handle)).astype('int')
         difference = prediction - seed_grown_pred  # Now we have our prediction, subtracting those that include truth
         labeled_difference = Connected_Component_Filter.Execute(sitk.GetImageFromArray(difference.astype('int')))
         stats.Execute(labeled_difference)
@@ -190,7 +190,7 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
     difference -= truth  # Subtract truth in case seed didn't land
     false_prediction_volume = np.sum(difference > 0) * spacing / 1000
     out_dict['False Prediction Volume (cc)'] = false_prediction_volume
-    out_dict['Over Segmentation Volume (cc)'] = false_volume - false_prediction_volume
+    out_dict['Over Segmentation Volume (cc)'] = false_positive - false_prediction_volume
     return out_dict
 
 
@@ -201,7 +201,7 @@ def determine_sensitivity(prediction_handle, truth_handle):
     :return: a dictionary of the site number (from ground truth), the % covered by the prediction and volume (cc)
     '''
     out_dict = {'Site_Number': [], '% Covered': [], 'Volume (cc)': []}
-    prediction = sitk.GetArrayFromImage(prediction_handle)
+    prediction = sitk.GetArrayFromImage(prediction_handle).astype('int')
     stats = sitk.LabelShapeStatisticsImageFilter()
     Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
     labeled_truth = Connected_Component_Filter.Execute(truth_handle)
