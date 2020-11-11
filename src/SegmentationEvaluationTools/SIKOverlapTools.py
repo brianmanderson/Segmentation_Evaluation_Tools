@@ -15,13 +15,13 @@ class SurfaceDistanceMeasures(Enum):
     mean_surface_distance, median_surface_distance, std_surface_distance, max_surface_distance = range(4)
 
 
-def overlap_measures(prediction_handle, truth_handle, perform_distance_measures=False):
-    '''
+def __overlap_measures__(prediction_handle, truth_handle, perform_distance_measures=False):
+    """
     :param prediction_handle: A prediction handle of a single site
     :param truth_handle: A ground truth handle of a single site
     :param perform_distance_measures: Binary, include distance measures
     :return: a dictionary of overlap measures, optional distance measures
-    '''
+    """
     out_dict = {}
     overlap_measures_filter = sitk.LabelOverlapMeasuresImageFilter()
     overlap_measures_filter.Execute(truth_handle, prediction_handle)
@@ -79,17 +79,19 @@ def overlap_measures(prediction_handle, truth_handle, perform_distance_measures=
     return out_dict
 
 
-def determine_overlap_measures(prediction_handle_base, truth_handle_base, measure_as_multiple_sites=False,
+def calculate_overlap_measures(prediction_handle_base, truth_handle_base, measure_as_multiple_sites=False,
                                perform_distance_measures=False):
-    '''
-    :param prediction_handle: A prediction handle of potentially multiple sites
-    :param truth_handle: A ground truth handle of a potentially multiple sites
+    """
+    :param prediction_handle_base: A prediction handle of potentially multiple sites
+    :param truth_handle_base: A ground truth handle of a potentially multiple sites
     :param measure_as_multiple_sites: Binary, measure overlap criteria on site-by-site basis and global?
     :param perform_distance_measures: Binary, include distance measures?
     :return: a dictionary of overlap measures, optional distance measures
-    '''
-    out_dict = {'Global': overlap_measures(prediction_handle=prediction_handle_base, truth_handle=truth_handle_base,
-                                           perform_distance_measures=perform_distance_measures)}
+    """
+    prediction_handle_base = convert_to_image(prediction_handle_base)
+    truth_handle_base = convert_to_image(truth_handle_base)
+    out_dict = {'Global': __overlap_measures__(prediction_handle=prediction_handle_base, truth_handle=truth_handle_base,
+                                               perform_distance_measures=perform_distance_measures)}
     if measure_as_multiple_sites:
         '''
         Load up necessary filters for individual assessment
@@ -110,10 +112,10 @@ def determine_overlap_measures(prediction_handle_base, truth_handle_base, measur
         '''
         truth_stats.Execute(truth_handle)
         pred_stats.Execute(prediction_handle)
-        prediction = sitk.GetArrayFromImage(prediction_handle_base).astype('int')
+        prediction = sitk.GetArrayFromImage(prediction_handle_base)
         for label in truth_stats.GetLabels():
             truth_site = truth_handle == label
-            truth = sitk.GetArrayFromImage(truth_site).astype('int')
+            truth = sitk.GetArrayFromImage(truth_site)
             overlap = truth * prediction
             if np.max(overlap) == 0:  # If there is no overlap, take the closest one
                 truth_seed = prediction_handle_base.TransformPhysicalPointToIndex(truth_stats.GetCentroid(label))
@@ -126,22 +128,38 @@ def determine_overlap_measures(prediction_handle_base, truth_handle_base, measur
                 seeds = [[int(i) for i in j] for j in seeds]
             Connected_Threshold.SetSeedList(seeds)
             grown_prediction = Connected_Threshold.Execute(prediction_handle_base)
-            overlap_metrics = overlap_measures(prediction_handle=grown_prediction, truth_handle=truth_site,
-                                               perform_distance_measures=perform_distance_measures)
+            overlap_metrics = __overlap_measures__(prediction_handle=grown_prediction, truth_handle=truth_site,
+                                                   perform_distance_measures=perform_distance_measures)
             out_dict[label] = overlap_metrics
     return out_dict
 
 
+def convert_to_image(x):
+    """
+    :param x: some object, perhaps numpy array or simple ITK image
+    :return: simpleITK image
+    """
+    if type(x) is sitk.Image:
+        return x
+    elif type(x) is np.ndarray:
+        print('Converting numpy array to Simple ITK Image, assumes spacing is (1, 1, 1)!')
+        return sitk.GetImageFromArray(x)
+    else:
+        raise TypeError('You need to provide a Simple ITK Image or numpy array!')
+
+
 def determine_false_positive_rate_and_false_volume(prediction_handle, truth_handle):
-    '''
+    """
     :param prediction_handle:
     :param truth_handle:
     :return: a dictionary with False Positive Volume (cc), volume of prediction not in ground truth
     False Predictions Volume (cc), this is the volume of prediction not connected to any truth prediction
     Over Segmentation Volume (cc), this is the volume over-segmented on ground truth
-    '''
-    prediction = sitk.GetArrayFromImage(prediction_handle).astype('int')
-    truth = sitk.GetArrayFromImage(truth_handle).astype('int')
+    """
+    prediction_handle = convert_to_image(prediction_handle)
+    truth_handle = convert_to_image(truth_handle)
+    prediction = sitk.GetArrayFromImage(prediction_handle)
+    truth = sitk.GetArrayFromImage(truth_handle)
 
     out_dict = {}
     spacing = np.prod(truth_handle.GetSpacing())
@@ -150,11 +168,9 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
     '''
     False Positive Volume (cc) is the easiest one, just subtract them
     '''
-    difference = prediction - truth
-    false_positive = np.sum(difference > 0) * spacing / 1000
-    false_negative = np.sum(difference < 0) * spacing / 1000
-    out_dict['False Positive Volume (cc)'] = false_positive
-    out_dict['False Negative Volume (cc)'] = false_negative
+    total_difference = np.sum(prediction - truth > 0) * spacing / 1000
+    false_volume = total_difference
+    out_dict['False Positive Volume (cc)'] = false_volume
     '''
     Next, we want to grow the prediction volume that touches ground truth, so multiple the prediction and ground truth
     '''
@@ -181,7 +197,7 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
         Connected_Threshold.SetUpper(2)
         Connected_Threshold.SetLower(1)
         Connected_Threshold.SetSeedList(seeds)
-        seed_grown_pred = sitk.GetArrayFromImage(Connected_Threshold.Execute(prediction_handle)).astype('int')
+        seed_grown_pred = sitk.GetArrayFromImage(Connected_Threshold.Execute(prediction_handle))
         difference = prediction - seed_grown_pred  # Now we have our prediction, subtracting those that include truth
         labeled_difference = Connected_Component_Filter.Execute(sitk.GetImageFromArray(difference.astype('int')))
         stats.Execute(labeled_difference)
@@ -190,18 +206,20 @@ def determine_false_positive_rate_and_false_volume(prediction_handle, truth_hand
     difference -= truth  # Subtract truth in case seed didn't land
     false_prediction_volume = np.sum(difference > 0) * spacing / 1000
     out_dict['False Prediction Volume (cc)'] = false_prediction_volume
-    out_dict['Over Segmentation Volume (cc)'] = false_positive - false_prediction_volume
+    out_dict['Over Segmentation Volume (cc)'] = false_volume - false_prediction_volume
     return out_dict
 
 
 def determine_sensitivity(prediction_handle, truth_handle):
-    '''
+    """
     :param prediction_handle: A prediction handle of potentially multiple sites
     :param truth_handle: A ground truth handle of potentially multiple sites
     :return: a dictionary of the site number (from ground truth), the % covered by the prediction and volume (cc)
-    '''
+    """
+    prediction_handle = convert_to_image(prediction_handle)
+    truth_handle = convert_to_image(truth_handle)
     out_dict = {'Site_Number': [], '% Covered': [], 'Volume (cc)': []}
-    prediction = sitk.GetArrayFromImage(prediction_handle).astype('int')
+    prediction = sitk.GetArrayFromImage(prediction_handle)
     stats = sitk.LabelShapeStatisticsImageFilter()
     Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
     labeled_truth = Connected_Component_Filter.Execute(truth_handle)
@@ -221,10 +239,10 @@ def determine_sensitivity(prediction_handle, truth_handle):
 
 
 def plot_scroll_Image(x):
-    '''
+    """
     :param x: input to view of form [rows, columns, # images]
     :return:
-    '''
+    """
     if x.dtype not in ['float32','float64']:
         x = copy.deepcopy(x).astype('float32')
     if len(x.shape) > 3:

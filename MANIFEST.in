@@ -1,5 +1,4 @@
-include *.txt
-recursive-include Images *.png
+recursive-include src *.png
 recursive-include src *.dcm
 recursive-include src *.ipynb
 recursive-include src *.py
