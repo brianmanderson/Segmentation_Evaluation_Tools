@@ -15,4 +15,4 @@ There are a set of tools for creating quantitative comparison metrics based on g
     
     fp_measures = determine_false_positive_rate_and_false_volume(prediction_handle_base, truth_handle_base)
     
-    sensitivity_measures = deteremine_sensitivity(prediction_handle=prediction_handle_base, truth_handle_base)
+    sensitivity_measures = determine_sensitivity(prediction_handle=prediction_handle_base, truth_handle_base)
